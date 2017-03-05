@@ -210,6 +210,30 @@ def first_last_system_call_feats(tree):
     c["last_call-"+last_call] = 1
     return c
 
+def gen_thread_sequence(tree):
+    # Dictionary of threads of form idnumber:[process1, process2,...] 
+    thread_seq = {}
+    thread_id = None
+    in_thread = False
+    for el in tree.iter():
+        # ignore everything outside the "all_section" element
+        if el.tag == "thread" and not in_thread:
+            in_thread = True
+            thread_id = int(el.attrib['tid'])
+            if thread_seq[thread_id] is None:
+                thread_seq[thread_id] = []
+        elif el.tag == "thread" and in_thread:
+            in_thread = False
+            thread_id = None
+        elif in_thread and not thread_id is None:
+            if not el.tag == 'all_section':
+                if el.tag == 'create_thread':
+                    thread_seq[el.attrib['threadid']]=thread_seq[thread_id]
+                    thread_seq[thread_id].append(el.tag)
+    # finally, mark last call seen
+    c["last_call-"+last_call] = 1
+    return c
+
 def system_call_count_feats(tree):
     """
     arguments:
@@ -240,32 +264,24 @@ def train(foldername):
     X_train,global_feat_dict,t_train,train_ids = extract_feats(ffs, foldername)
     print "done extracting training features"
 
-    print type(X_train)
-    print str(X_train)
-    print type(global_feat_dict)
-    print str(global_feat_dict)
-    print type(t_train)
-    print str(t_train)
-    print type(train_ids)
-    print str(train_ids)
     # TODO train here, and learn your classification parameters
     print "learning..."
     learned_W = np.random.random((len(global_feat_dict),len(util.malware_classes)))
     print "done learning"
     print
 
-    with open('temp', 'w') as f:
+    with open('temp.tmp', 'w') as f:
         f.write(str(global_feat_dict))
     
-    with open('temp2', 'w') as f:
+    with open('temp2.tmp', 'w') as f:
         f.write(str(learned_W))
 
 def test(foldername, output):
     global ffs
-    with open('temp', 'r') as f:
+    with open('temp.tmp', 'r') as f:
         global_feat_dict = ast.literal_eval(f.read())
 
-    with open('temp2', 'r') as f:
+    with open('temp2.tmp', 'r') as f:
         learned_W = ast.literal_eval(f.read())
 
 
