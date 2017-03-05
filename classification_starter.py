@@ -219,8 +219,8 @@ def gen_thread_sequence(tree):
         # ignore everything outside the "all_section" element
         if el.tag == "thread" and not in_thread:
             in_thread = True
-            thread_id = int(el.attrib['tid'])
-            if thread_seq[thread_id] is None:
+            thread_id = el.attrib['tid']
+            if not thread_id in thread_seq:
                 thread_seq[thread_id] = []
         elif el.tag == "thread" and in_thread:
             in_thread = False
@@ -229,10 +229,8 @@ def gen_thread_sequence(tree):
             if not el.tag == 'all_section':
                 if el.tag == 'create_thread':
                     thread_seq[el.attrib['threadid']]=thread_seq[thread_id]
-                    thread_seq[thread_id].append(el.tag)
-    # finally, mark last call seen
-    c["last_call-"+last_call] = 1
-    return c
+                thread_seq[thread_id].append(el.tag)
+    return thread_seq
 
 def system_call_count_feats(tree):
     """
