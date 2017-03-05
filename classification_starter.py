@@ -120,7 +120,7 @@ def extract_feats(ffs, direc="train", global_feat_dict=None):
         rowfd = {}
         # parse file as an xml document
         tree = ET.parse(os.path.join(direc,datafile))
-        gen_thread_sequence(tree)
+        gen_common_sequences(direc)
         # accumulate features
         [rowfd.update(ff(tree)) for ff in ffs]
         fds.append(rowfd)
@@ -128,6 +128,17 @@ def extract_feats(ffs, direc="train", global_feat_dict=None):
     X,feat_dict = make_design_mat(fds,global_feat_dict)
     return X, feat_dict, np.array(classes), ids
 
+def gen_common_sequences(direc):
+    seq_dict = {}
+    for datafile in os.listdir(direc):
+        id_str,clazz = datafile.split('.')[:2]
+        if not clazz in seq_dict:
+            seq_dict[clazz]=[]
+        tree = ET.parse(os.path.join(direc,datafile))
+        sequence_layers = gen_thread_sequence(tree)
+        seq_dict[clazz].append(sequence_layers)
+    
+    return seq_dict
 
 def make_design_mat(fds, global_feat_dict=None):
     """
@@ -242,7 +253,8 @@ def gen_thread_sequence(tree):
                     thread_seq[thread_id]['seq'].append(el.tag)
     layered = [[]]*(max_layers+1)
     for k,v in thread_seq.iteritems():
-        layered[v['layer']]=v['seq']
+        if len(layered[v['layer']]) <= len(v['seq']):
+            layered[v['layer']]=v['seq']
     return layered
 
 def system_call_count_feats(tree):
