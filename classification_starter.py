@@ -136,8 +136,11 @@ def gen_common_sequences(direc):
             seq_dict[clazz]=[]
         tree = ET.parse(os.path.join(direc,datafile))
         sequence_layers = gen_thread_sequence(tree)
-        seq_dict[clazz].append(sequence_layers)
-    
+        for i in xrange(0,len(sequence_layers)):
+            if len(seq_dict[clazz])<=i:
+                seq_dict[clazz].append([])
+            seq_dict[clazz][i].append(sequence_layers[i])
+ 
     return seq_dict
 
 def make_design_mat(fds, global_feat_dict=None):
