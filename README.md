@@ -1,3 +1,3 @@
 # Classification Practical
 
-Preactical 2 for CS181
+Practical 2 for CS181
