@@ -69,6 +69,7 @@
 
 import os
 import sys
+import operator
 from collections import Counter
 try:
     import xml.etree.cElementTree as ET
@@ -103,6 +104,8 @@ def extract_feats(ffs, direc="train", global_feat_dict=None):
     classes = []
     ids = [] 
     for datafile in os.listdir(direc):
+        if not datafile == '00269ea50001a6c699d0222032d45b74b2e7e8be9.None.xml':
+            continue
         # extract id and true class (if available) from filename
         id_str,clazz = datafile.split('.')[:2]
         ids.append(id_str)
@@ -117,6 +120,7 @@ def extract_feats(ffs, direc="train", global_feat_dict=None):
         rowfd = {}
         # parse file as an xml document
         tree = ET.parse(os.path.join(direc,datafile))
+        gen_thread_sequence(tree)
         # accumulate features
         [rowfd.update(ff(tree)) for ff in ffs]
         fds.append(rowfd)
@@ -215,22 +219,31 @@ def gen_thread_sequence(tree):
     thread_seq = {}
     thread_id = None
     in_thread = False
+    max_layers = 0
     for el in tree.iter():
         # ignore everything outside the "all_section" element
         if el.tag == "thread" and not in_thread:
             in_thread = True
             thread_id = el.attrib['tid']
             if not thread_id in thread_seq:
-                thread_seq[thread_id] = []
+                thread_seq[thread_id] = {'layer':0, 'seq':[]}
         elif el.tag == "thread" and in_thread:
             in_thread = False
             thread_id = None
         elif in_thread and not thread_id is None:
+            seq = thread_seq[thread_id]['seq']
             if not el.tag == 'all_section':
-                if el.tag == 'create_thread':
-                    thread_seq[el.attrib['threadid']]=thread_seq[thread_id]
-                thread_seq[thread_id].append(el.tag)
-    return thread_seq
+                if el.tag == 'create_thread' or el.tag == 'create_thread_remote':
+                    thread_seq[el.attrib['threadid']]={}
+                    thread_seq[el.attrib['threadid']]['layer']=thread_seq[thread_id]['layer']+1
+                    thread_seq[el.attrib['threadid']]['seq']=seq
+                    max_layers = max(max_layers, thread_seq[thread_id]['layer']+1)
+                if len(seq) == 0 or not el.tag == seq[-1]:
+                    thread_seq[thread_id]['seq'].append(el.tag)
+    layered = [[]]*(max_layers+1)
+    for k,v in thread_seq.iteritems():
+        layered[v['layer']]=v['seq']
+    return layered
 
 def system_call_count_feats(tree):
     """
