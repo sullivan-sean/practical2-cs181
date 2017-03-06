@@ -105,7 +105,10 @@ def extract_feats(direc="train", bgs=[], train=True):
     classes = []
     ids = []
     ml = []
+    count = 0
     for datafile in os.listdir(direc):
+        if count >= 100:
+            break
         # extract id and true class (if available) from filename
         id_str,clazz = datafile.split('.')[:2]
         ids.append(id_str)
@@ -124,6 +127,7 @@ def extract_feats(direc="train", bgs=[], train=True):
             if len(ml) <= i:
                 ml.append([])
             ml[i].append(layers[i])
+        count += 1
         # accumulate features
     X = None
     for i in xrange(0, len(ml)):
@@ -136,11 +140,11 @@ def extract_feats(direc="train", bgs=[], train=True):
             bgs.append(bigram_vectorizer.get_feature_names())
         else:
             bigram_vectorizer = CountVectorizer(ngram_range=(1,2),token_pattern=r'\b\w+\b',min_df=1,vocabulary=bgs[i])
+            print len(bigram_vectorizer.get_feature_names())
             if X is None:
-                X = bigram_vectorizer.fit_transform(ml[i])
+                X = bigram_vectorizer.transform(ml[i])
             else:
-                X = sparse.hstack([X,bigram_vectorizer.fit_transform(ml[i])])
-        print X.shape
+                X = sparse.hstack([X,bigram_vectorizer.transform(ml[i])])
     #X,feat_dict = make_design_mat(fds,global_feat_dict)
     print bgs
     for i in bgs:
@@ -181,7 +185,7 @@ def gen_thread_sequence(tree):
         layered[v['layer']].extend(v['seq'])
     for i in xrange(0,len(layered)):
         layered[i] = " ".join(layered[i])
-    while len(layered) < 5:
+    while len(layered) < 4:
         layered.append("")
     return layered
 '''
