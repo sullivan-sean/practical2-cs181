@@ -80,12 +80,11 @@ from scipy import sparse
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
-from sklearn import preprocessing
 import ast
 
 import util
 
-def extract_feats(direc="train", bgs=[]):
+def extract_feats(direc="train", bgs=[], train=True):
     """
     arguments:
       ffs are a list of feature-functions.
@@ -120,125 +119,30 @@ def extract_feats(direc="train", bgs=[]):
             classes.append(-1)
         # parse file as an xml document
         tree = ET.parse(os.path.join(direc,datafile))
-        ml.append(gen_thread_sequence(tree))
+        layers = gen_thread_sequence(tree)
+        for i in xrange(0,len(layers)):
+            if len(ml) <= i:
+                ml.append([])
+            ml[i].append(layers[i])
         # accumulate features
-    if bgs == []:
-        bigram_vectorizer = CountVectorizer(ngram_range=(1,4),token_pattern=r'\b\w+\b', min_df=1)
-        X = bigram_vectorizer.fit_transform(ml)
-        bgs = bigram_vectorizer.get_feature_names()
+    X = None
+    if train:
+        for i in xrange(0, len(ml)):
+            bigram_vectorizer = CountVectorizer(ngram_range=(1,3),token_pattern=r'\b\w+\b', min_df=1)
+            if X is None:
+                X = bigram_vectorizer.fit_transform(ml[i])
+            else:
+                X = sparse.hstack([X,bigram_vectorizer.fit_transform(ml[i])])
+            bgs.append(bigram_vectorizer.get_feature_names())
     else:
-        bigram_vectorizer = CountVectorizer(ngram_range=(1,4),token_pattern=r'\b\w+\b',min_df=1,vocabulary=bgs)
-        X = bigram_vectorizer.transform(ml)
-    return X, bgs, np.array(classes), ids
+        for i in xrange(0, len(bgs)):
+            bigram_vectorizer = CountVectorizer(ngram_range=(1,3),token_pattern=r'\b\w+\b',min_df=1,vocabulary=bgs[i])
+            if X is None:
+                X = bigram_vectorizer.transform(ml[i])
+            else:
+                X = sparse.hstack([X,bigram_vectorizer.transform(ml[i])])
+    return X, bgs, np.array(classes), ids#feat_dict, np.array(classes), ids
 
-def gen_common_sequences(direc):
-    seq_dict = {}
-    # Loops through files
-    for datafile in os.listdir(direc):
-        id_str,clazz = datafile.split('.')[:2]
-        # Checks if class is already in dictionary
-        if not clazz in seq_dict:
-            seq_dict[clazz]=[]
-        tree = ET.parse(os.path.join(direc,datafile))
-        sequence_layers = gen_thread_sequence(tree)
-
-        # Loops through layers returned by get_thread_sequence
-        for i in xrange(0,len(sequence_layers)):
-
-            # Checks if class clazz already has this number of layers
-            if len(seq_dict)<=i:
-                seq_dict.append([])
-            seq_dict[i].append(sequence_layers[i])
-
-    with open('seq_dict.txt','w') as f:
-        f.write(str(seq_dict))
-
-def make_design_mat(fds, global_feat_dict=None):
-    """
-    arguments:
-      fds is a list of feature dicts (one for each row).
-      global_feat_dict is a dictionary mapping feature_names to column-numbers; it
-      should only be provided when extracting features from test data, so that 
-      the columns of the test matrix align correctly.
-       
-    returns: 
-        a sparse NxD design matrix, where N == len(fds) and D is the number of
-        the union of features defined in any of the fds 
-    """
-    if global_feat_dict is None:
-        all_feats = set()
-        [all_feats.update(fd.keys()) for fd in fds]
-        feat_dict = dict([(feat, i) for i, feat in enumerate(sorted(all_feats))])
-    else:
-        feat_dict = global_feat_dict
-        
-    cols = []
-    rows = []
-    data = []        
-    for i in xrange(len(fds)):
-        temp_cols = []
-        temp_data = []
-        for feat,val in fds[i].iteritems():
-            try:
-                # update temp_cols iff update temp_data
-                temp_cols.append(feat_dict[feat])
-                temp_data.append(val)
-            except KeyError as ex:
-                if global_feat_dict is not None:
-                    pass  # new feature in test data; nbd
-                else:
-                    raise ex
-
-        # all fd's features in the same row
-        k = len(temp_cols)
-        cols.extend(temp_cols)
-        data.extend(temp_data)
-        rows.extend([i]*k)
-
-    assert len(cols) == len(rows) and len(rows) == len(data)
-   
-
-    X = sparse.csr_matrix((np.array(data),
-                   (np.array(rows), np.array(cols))),
-                   shape=(len(fds), len(feat_dict)))
-    return X, feat_dict
-    
-
-## Here are two example feature-functions. They each take an xml.etree.ElementTree object, 
-# (i.e., the result of parsing an xml file) and returns a dictionary mapping 
-# feature-names to numeric values.
-## TODO: modify these functions, and/or add new ones.
-def first_last_system_call_feats(tree):
-    """
-    arguments:
-      tree is an xml.etree.ElementTree object
-    returns:
-      a dictionary mapping 'first_call-x' to 1 if x was the first system call
-      made, and 'last_call-y' to 1 if y was the last system call made. 
-      (in other words, it returns a dictionary indicating what the first and 
-      last system calls made by an executable were.)
-    """
-    c = Counter()
-    in_all_section = False
-    first = True # is this the first system call
-    last_call = None # keep track of last call we've seen
-    for el in tree.iter():
-        # ignore everything outside the "all_section" element
-        if el.tag == "all_section" and not in_all_section:
-            in_all_section = True
-        elif el.tag == "all_section" and in_all_section:
-            in_all_section = False
-        elif in_all_section:
-            if first:
-                c["first_call-"+el.tag] = 1
-                first = False
-            last_call = el.tag  # update last call seen
-            
-    # finally, mark last call seen
-    c["last_call-"+last_call] = 1
-    return c
-
-'''
 def gen_thread_sequence(tree):
     # Dictionary of threads of form idnumber:[process1, process2,...] 
     thread_seq = {}
@@ -265,104 +169,47 @@ def gen_thread_sequence(tree):
                     max_layers = max(max_layers, thread_seq[thread_id]['layer']+1)
                 if len(seq) == 0 or not el.tag == seq[-1]:
                     thread_seq[thread_id]['seq'].append(el.tag)
+    # Layered is an list of layers, with each layer containing one string of
+    # call sequences
     layered = [[]]*(max_layers+1)
     for k,v in thread_seq.iteritems():
-        if len(layered[v['layer']]) <= len(v['seq']):
-            layered[v['layer']]=v['seq']
+        layered[v['layer']].extend(v['seq'])
+    for i in xrange(0,len(layered)):
+        layered[i] = " ".join(layered[i])
+    while len(layered) < 5:
+        layered.append("")
     return layered
-'''
-def gen_thread_sequence(tree):
-    # Dictionary of threads of form idnumber:[process1, process2,...] 
-    thread_seq = {}
-    thread_id = None
-    in_thread = False
-    for el in tree.iter():
-        # ignore everything outside the "all_section" element
-        if el.tag == "thread" and not in_thread:
-            in_thread = True
-            thread_id = el.attrib['tid']
-            if not thread_id in thread_seq:
-                thread_seq[thread_id] = []
-        elif el.tag == "thread" and in_thread:
-            in_thread = False
-            thread_id = None
-        elif in_thread and not thread_id is None:
-            if not el.tag == 'all_section' and not el.tag == 'process':
-                thread_seq[thread_id].append(el.tag)
-    master_list = []
-    for k,v in thread_seq.iteritems():
-        master_list.extend(v)
-    filestring = ' '.join(master_list)
-    return filestring
 
-def system_call_count_feats(tree):
-    """
-    arguments:
-      tree is an xml.etree.ElementTree object
-    returns:
-      a dictionary mapping 'num_system_calls' to the number of system_calls
-      made by an executable (summed over all processes)
-    """
-    c = Counter()
-    in_all_section = False
-    for el in tree.iter():
-        # ignore everything outside the "all_section" element
-        if el.tag == "all_section" and not in_all_section:
-            in_all_section = True
-        elif el.tag == "all_section" and in_all_section:
-            in_all_section = False
-        elif in_all_section:
-            c['num_system_calls'] += 1
-    return c
-
-def train(name):
+def train():
 
     # extract features
     print "extracting training features..."
     X_train, bgs, Y_train, _ = extract_feats('train',[])
-    print "done extracting training features"
-    print X_train.shape
 
-    #X_train_train, X_test_train, y_train_train, y_test_train = train_test_split(X_train, Y_train, test_size=0.33,random_state=42)
-    # TODO train here, and learn your classification parameters
     print "learning..."
     lr = LogisticRegression(class_weight="balanced",solver="newton-cg",multi_class="multinomial",max_iter=1000)
     lr.fit(X_train, Y_train)
 
-    print "done learning"
-    print
-
-    #print lr.score(X_test_train, y_test_train)
-    
-
     print "extracting test features..."
-    X_test, bgs, _, test_ids = extract_feats('test', bgs)
-    print "done extracting test features"
-    print X_test.shape
+    X_test, bgs, _, test_ids = extract_feats('test', bgs, False)
 
-
-    # TODO make predictions on text data and write them out
     print "making predictions..."
     preds = lr.predict(X_test)
     print "done making predictions"
     print
     
     print "writing predictions..."
-    util.write_predictions(preds, test_ids, 'output.csv')
+    util.write_predictions(preds, test_ids, 'output2.csv')
     print "done!"
 
 ## The following function does the feature extraction, learning, and prediction
 def main(argv):
 
     if len(argv) == 1 and argv[0] == 'train':
-        train('train')
-
-    elif len(argv) == 2 and argv[0] == 'test':
-        test('test', argv[1])
+        train()
 
     else:
-        print "\"classification_starter.py train <train_directory>\": Train on directory of xml files."
-        print "\"classification_starter.py test <test_directory> <output.csv>\": Write predictions on test directory to csv file."
+        print "\"classification_starter.py train.\": Train on directory of xml files."
         sys.exit(2)
     
 

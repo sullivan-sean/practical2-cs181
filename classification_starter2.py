@@ -129,8 +129,7 @@ def extract_feats(direc="train", bgs=[]):
     else:
         bigram_vectorizer = CountVectorizer(ngram_range=(1,3),token_pattern=r'\b\w+\b',min_df=1,vocabulary=bgs)
         X = bigram_vectorizer.transform(ml)
-    #X,feat_dict = make_design_mat(fds,global_feat_dict)
-    return X, bgs, np.array(classes), ids#feat_dict, np.array(classes), ids
+    return X, bgs, np.array(classes), ids
 
 def gen_common_sequences(direc):
     seq_dict = {}
@@ -327,7 +326,7 @@ def train(name):
     #X_train_train, X_test_train, y_train_train, y_test_train = train_test_split(X_train, Y_train, test_size=0.33,random_state=42)
     # TODO train here, and learn your classification parameters
     print "learning..."
-    lr = LogisticRegression(class_weight="balanced",solver="newton-cg",multi_class="multinomial",max_iter=1000)
+    lr = LogisticRegression(class_weight="balanced",solver="newton-cg",multi_class="multinomial",max_iter=10000)
     lr.fit(X_train, Y_train)
 
     print "done learning"
