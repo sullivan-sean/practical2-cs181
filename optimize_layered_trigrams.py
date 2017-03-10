@@ -395,8 +395,7 @@ if __name__ == "__main__":
     X_train_train, X_test_train, y_train_train, y_test_train = train_test_split(X_train, Y_train, test_size=0.33,random_state=42)
     # TODO train here, and learn your classification parameters
     print "learning..."
-    # lr = LogisticRegression(class_weight="balanced",solver="newton-cg",multi_class="multinomial",max_iter=10000)
-    # lr.fit(X_train, Y_train)
+
 
     parameters = {'n_estimators':[100,300,500,1000], 'max_features':['auto','sqrt','log2'],'criterion':['gini','entropy'], 'max_depth':[None]+[1,5,7,10,12,15], 'min_samples_leaf':[1,3,5,7,9,11]}
 
@@ -406,3 +405,28 @@ if __name__ == "__main__":
     print gs.best_estimator_.score(X_test_train,y_test_train)
     pd.DataFrame(gs.cv_results_).to_csv("optimize.csv")
     print
+
+    '''
+    uncheck below to make predictions
+    '''
+
+    rf = RF(n_jobs = -1, class_weight="balanced", max_features="log2", n_estimators=300, criterion='gini', max_depth=None, min_samples_leaf=1)
+    rf.fit(X_train, Y_train)
+    rf.score(X_train, Y_train)
+    
+
+    print "extracting test features..."
+    X_test, bgs, _, test_ids = extract_feats('test', bgs)
+    print "done extracting test features"
+    print X_test.shape
+
+
+    # TODO make predictions on text data and write them out
+    print "making predictions..."
+    preds = rf.predict(X_test)
+    print "done making predictions"
+    print
+    
+    print "writing predictions..."
+    util.write_predictions(preds, test_ids, 'output_hyper_layered_trigrams_50000.csv')
+    print "done!"
